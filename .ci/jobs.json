@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "generator": "ccid render v1",
+  "tool_revision": "81ebac8e86e20bc93b69d5e912bbcb0c0d036d58",
+  "manifest_sha256": "86b60663c0202f07a4ee4828fb49efbca435c206fa83ec051162f594334625d2",
+  "jobs": {
+    "verify": {
+      "job": "verify",
+      "scheduler": "crow",
+      "checks": [
+        "verify"
+      ],
+      "workflow": "repository-jobs",
+      "command": [
+        "bash",
+        ".ci/run-cached.sh"
+      ]
+    }
+  }
+}
