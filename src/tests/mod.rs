@@ -972,6 +972,17 @@ fn reservation_uses_a_fresh_host_clock_and_refuses_expired_dispatch() {
 
 #[test]
 fn explicit_report_retains_bounded_replies_without_authenticating_invalid_data() {
+    assert_eq!(
+        simulate(
+            operation(),
+            capture(),
+            vec![0; 1_048_577],
+            &Request::default(),
+            100
+        )
+        .unwrap_err(),
+        Error::Rejected
+    );
     for (status, body, accepted) in [
         (200, RESPONSE.to_vec(), true),
         (200, b"private-malformed-response".to_vec(), false),
