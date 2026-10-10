@@ -11,7 +11,6 @@ export RUSTUP_TOOLCHAIN="${RUSTUP_TOOLCHAIN:-stable}"
 export RUNNER_TEMP="${RUNNER_TEMP:-$(mktemp -d)}"
 export GITHUB_PATH="${GITHUB_PATH:-$RUNNER_TEMP/github_path}"
 touch "$GITHUB_PATH"
-cargo update
 cp Cargo.lock "$ARTIFACT_ROOT/Cargo.lock"
 python3 .github/check-first-party.py
 rustc --version
@@ -21,6 +20,9 @@ cargo test --locked
 cargo check --locked --target wasm32-unknown-unknown
 rustup run nightly rustc --version
 NIGHTLY_CARGO="$(rustup which --toolchain nightly cargo)"
+NIGHTLY_RUSTC="$(rustup which --toolchain nightly rustc)"
+export RUSTC="$NIGHTLY_RUSTC" CARGO="$NIGHTLY_CARGO" RUSTUP_TOOLCHAIN=nightly
+export PATH="$(dirname "$NIGHTLY_RUSTC"):$PATH"
 "$NIGHTLY_CARGO" llvm-cov --version
 # Bug 2 isolation: coverage data must not reuse the shared cargo target
 # across jobs (stale checkout paths fail the next gate); scope the
@@ -35,5 +37,6 @@ export CARGO_TARGET_DIR="$coverage_target"
 "$NIGHTLY_CARGO" llvm-cov report --locked --branch --ignore-filename-regex '/tests/' --lcov --output-path coverage.lcov
 "$NIGHTLY_CARGO" llvm-cov report --locked --branch --ignore-filename-regex '/tests/' --text --output-path coverage.txt
 )
+cp coverage.json coverage.lcov coverage.txt "$ARTIFACT_ROOT/"
 python3 .github/test-source-coverage.py
 python3 .github/check-source-coverage.py coverage.lcov coverage.json coverage.txt
