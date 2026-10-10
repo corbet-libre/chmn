@@ -61,7 +61,7 @@ fn registration_deadline_is_checked_inside_commit_and_after_the_wait() {
             assert_eq!(store.committed.load(Ordering::SeqCst), 1);
             assert_eq!(
                 result,
-                if completed >= 200 || completed < 100 {
+                if !(100..200).contains(&completed) {
                     Err(Error::Rejected)
                 } else {
                     Ok(())
