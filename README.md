@@ -1,37 +1,27 @@
 # chmn
 
-**Biometric admission gate for cvld.**
+Reusable, safe-Rust biometric provider integration. Azure Face v1.2 currently
+supports face-to-face comparison, verification against an enrolled person, and
+identification within an account's person group. Maintained `reqwest` handles
+HTTPS, `uuid` parses provider IDs, and RustCrypto supplies keyed scoped identity
+transformation. This crate implements neither biometric recognition algorithms
+nor capture UI, enrollment, liveness or universal human uniqueness.
 
-`chmn` will prove that a member is a living human through an established biometric verification provider. The gate itself never sees raw biometric data; `cvld` receives only an opaque proof bound to its configured provider.
+The caller supplies an authenticated capture binding, task, permitted account,
+explicit credentials, verified tariff, total budget and atomic operation journal.
+`AzureFace::preview` is inert; `cfbk::cost::Plan` selects and bounds a cascade;
+`AzureFace::execute` checks its move-only permit again immediately before reserve
+and dispatch. Unknown prices cannot dispatch. No automatic retries occur.
 
-Status: name reserved, no implementation or qualified provider adapter yet.
-One invocation checks one provider result; `cfbk` owns ordering/fallback and
-`crbk` owns requirements. The empty production coverage inventory must fail.
-See [the current contract](docs/CONTRACT.md).
-The [implementation acceptance contract](docs/IMPLEMENTATION.md) specifies the
-required adapter output, gate integration, credential injection and refusal tests.
+Results remain private in RAM. `VerifiedMatch::project` returns requested match
+facts with optional caller confidence threshold; provider face references and
+confidence are opt-in. Complete upstream JSON including unknown extensions is
+explicitly available. The normal cvld path requests match predicates only.
+`comparison` derives an opaque scoped identity only for one qualifying enrolled
+person candidate, with account, endpoint, mode and group separation. The host
+provides atomic X-registration limits and decides all windows/release policy.
 
-## Boundaries
-
-What it does:
-
-- Checks a provider's liveness/uniqueness result and returns an opaque gate proof bound to its configured provider.
-
-What it never does:
-
-- Never receives, stores or forwards raw biometric data (images, templates, video).
-- Raw factor data never reaches `cvld`: it receives only an opaque proof bound to its configured provider. No raw data in output, logs, errors or fixtures.
-- No own security primitives: a thin wrapper around the established best-practice library for the factor.
-
-## License
-
-Copyright 2026 Julian Y. Richard Corbet. Licensed under
-[LGPL-3.0-only](LICENSES/LGPL-3.0-only.txt)
-[WITH LGPL-3.0-linking-exception](LICENSES/LGPL-3.0-linking-exception.txt).
-See [LICENSE.md](LICENSE.md).
-
-## Continuous verification
-
-Dependency updates follow main and are tested against one CI-resolved lockfile.
-Line and branch coverage target 100%; failures remain blocking. See
-[the coverage contract](docs/COVERAGE.md) for measurement and exclusions.
+See [the contract](docs/CONTRACT.md) for credentials, costs, modes, privacy and
+qualification boundaries. No live provider call or account signup is required
+by the fixture suite. Live provider compatibility is unqualified until an
+explicitly authorized host runs its contract probes with its own account.
