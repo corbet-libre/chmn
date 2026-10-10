@@ -537,8 +537,9 @@ fn local_simulation_is_a_distinct_untrusted_projection() {
     cascade.complete(Outcome::Success, Some(amount(2))).unwrap();
     assert!(cascade.begin(100).is_err());
 }
+type RegistrationState = BTreeMap<([u8; 32], String), (u64, BTreeSet<String>)>;
 #[derive(Default)]
-struct Registrations(Mutex<BTreeMap<([u8; 32], String), (u64, BTreeSet<String>)>>);
+struct Registrations(Mutex<RegistrationState>);
 impl RegistrationStore for Registrations {
     async fn reserve(
         &self,
@@ -595,7 +596,6 @@ fn concurrent_general_registration_limits_and_exact_retries() {
             })
             .collect::<Vec<_>>();
         jobs.into_iter()
-            .filter(|j| j.thread().name().is_none())
             .map(|j| usize::from(j.join().unwrap()))
             .sum::<usize>()
     });

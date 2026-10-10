@@ -95,3 +95,7 @@ impl Transport for ReqwestTransport {
         })
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "tests/transport.rs"]
+mod tests;
