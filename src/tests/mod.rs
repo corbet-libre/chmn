@@ -590,6 +590,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                             maximum: 2,
                             operation: n.to_string(),
                         },
+                        100,
                     ))
                     .is_ok()
                 })
@@ -618,7 +619,8 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 policy_scope: "month".into(),
                 maximum: 2,
                 operation: operation.clone()
-            }
+            },
+            100
         ))
         .is_ok()
     );
@@ -629,7 +631,8 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 policy_scope: "month".into(),
                 maximum: 3,
                 operation
-            }
+            },
+            100
         ))
         .is_err()
     );
@@ -640,7 +643,8 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 policy_scope: "next-month".into(),
                 maximum: 2,
                 operation: "new".into()
-            }
+            },
+            100
         ))
         .is_ok()
     );
@@ -651,7 +655,8 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 policy_scope: "month".into(),
                 maximum: 0,
                 operation: "zero".into()
-            }
+            },
+            100
         ))
         .is_err()
     );
@@ -895,4 +900,26 @@ fn uncertain_operations_and_concurrent_attempts_keep_one_host_reservation() {
     });
     assert_eq!(accepted, 1);
     assert_eq!(dummy.calls.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn retained_comparison_handles_do_not_register_after_capture_expiry() {
+    let id = execute(&Dummy::new(RESPONSE), operation())
+        .unwrap()
+        .comparison(
+            &IdentityKey::new([1; 32]).unwrap(),
+            &identity_request(),
+            &capture(),
+            100,
+        )
+        .unwrap();
+    let request = Registration {
+        policy_scope: "window".into(),
+        maximum: 1,
+        operation: "op".into(),
+    };
+    assert_eq!(
+        block_on(id.register(&Registrations::default(), &request, 200)),
+        Err(Error::Rejected)
+    );
 }

@@ -19,6 +19,7 @@ impl IdentityKey {
         domain: &str,
         identity: &str,
         scope: &str,
+        expires_at: u64,
     ) -> Result<ScopedIdentity, Error> {
         for s in [domain, identity, scope] {
             identifier(s)?;
@@ -30,16 +31,22 @@ impl IdentityKey {
             mac.update(&(s.len() as u64).to_be_bytes());
             mac.update(s.as_bytes());
         }
-        Ok(ScopedIdentity(mac.finalize().into_bytes().into()))
+        Ok(ScopedIdentity {
+            bytes: mac.finalize().into_bytes().into(),
+            expires_at,
+        })
     }
 }
 /// A comparison value for one authenticated provider identity domain and caller scope.
 #[derive(Clone, PartialEq, Eq)]
-pub struct ScopedIdentity([u8; 32]);
+pub struct ScopedIdentity {
+    bytes: [u8; 32],
+    expires_at: u64,
+}
 impl ScopedIdentity {
     /// Explicit opaque bytes for caller storage, never a raw biometric provider identifier.
     pub fn bytes(&self) -> &[u8; 32] {
-        &self.0
+        &self.bytes
     }
     /// Atomically reserve up to a caller-selected maximum. Window/release semantics
     /// are encoded by the caller's policy scope, not invented by this crate.
@@ -47,7 +54,11 @@ impl ScopedIdentity {
         &self,
         store: &S,
         request: &Registration,
+        now: u64,
     ) -> Result<(), Error> {
+        if now >= self.expires_at {
+            return Err(Error::Rejected);
+        }
         identifier(&request.policy_scope)?;
         identifier(&request.operation)?;
         if request.maximum == 0 {

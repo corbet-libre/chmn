@@ -196,7 +196,12 @@ impl VerifiedMatch {
             group,
         ])
         .to_string();
-        key.derive(&domain, &person.to_string(), &request.scope)
+        key.derive(
+            &domain,
+            &person.to_string(),
+            &request.scope,
+            self.capture.expires_at,
+        )
     }
     fn check_context(&self, capture: &Capture, now: u64) -> Result<(), Error> {
         capture.validate(now)?;
