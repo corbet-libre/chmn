@@ -4,6 +4,7 @@ use std::net::TcpListener;
 
 fn request(url: String) -> HttpRequest {
     HttpRequest {
+        valid_until: 200,
         url,
         key: Zeroizing::new("fixture-key".into()),
         body: Private::new(b"{}".to_vec()),
@@ -42,7 +43,7 @@ fn exchange(response: Vec<u8>) -> Result<HttpResponse, Error> {
             .no_proxy()
             .build()
             .unwrap();
-        ReqwestTransport(client)
+        ReqwestTransport(client, std::sync::Arc::new(|| 100))
             .send(request(format!("http://{address}/face/v1.2/verify")))
             .await
     });
@@ -85,7 +86,12 @@ fn transport_rejects_invalid_credentials_and_unavailable_connections() {
         .build()
         .unwrap();
     runtime.block_on(async {
-        let transport = ReqwestTransport::new().unwrap();
+        let expired = ReqwestTransport::new(|| 200).unwrap();
+        assert!(matches!(
+            expired.send(request("https://127.0.0.1:1".into())).await,
+            Err(Error::Refused)
+        ));
+        let transport = ReqwestTransport::new(|| 100).unwrap();
         let mut bad = request("https://127.0.0.1:1".into());
         bad.key = Zeroizing::new("invalid\nkey".into());
         assert!(matches!(

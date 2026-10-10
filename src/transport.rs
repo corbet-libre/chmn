@@ -4,6 +4,8 @@ use std::future::Future;
 use zeroize::Zeroizing;
 /// Trusted HTTP transport request. Never log its URL/body/key.
 pub struct HttpRequest {
+    /// Exclusive effective quote/capture deadline, checked at the real I/O edge.
+    pub valid_until: u64,
     /// Adapter-validated HTTPS provider URL.
     pub url: String,
     /// Explicit injected subscription key.
@@ -30,7 +32,9 @@ pub struct HttpResponse {
 /// not retry, redirect, persist, log private buffers or turn an ambiguous network
 /// result into a safe failure. Dummy fixtures are only for tests/simulation.
 pub trait Transport: Sync {
-    /// Perform exactly one authenticated POST, without hidden retries.
+    /// Perform exactly one authenticated POST, without hidden retries. Check the
+    /// request deadline with a fresh trusted clock immediately before I/O, after
+    /// any queue wait; an expired request must not reach the provider.
     fn send(
         &self,
         request: HttpRequest,
@@ -55,11 +59,15 @@ pub trait OperationStore: Sync {
 /// Maintained reqwest HTTPS transport. Native only; WASM callers supply their
 /// trusted transport explicitly instead of browser-managed opaque redirects.
 #[cfg(not(target_arch = "wasm32"))]
-pub struct ReqwestTransport(reqwest::Client);
+pub struct ReqwestTransport(
+    reqwest::Client,
+    std::sync::Arc<dyn Fn() -> u64 + Send + Sync>,
+);
 #[cfg(not(target_arch = "wasm32"))]
 impl ReqwestTransport {
     /// Build without redirects, implicit proxies, or retries; bounded timeout.
-    pub fn new() -> Result<Self, Error> {
+    /// Inject the same trusted clock convention used for quote/capture expiry.
+    pub fn new(clock: impl Fn() -> u64 + Send + Sync + 'static) -> Result<Self, Error> {
         reqwest::Client::builder()
             .https_only(true)
             .redirect(reqwest::redirect::Policy::none())
@@ -67,7 +75,7 @@ impl ReqwestTransport {
             .no_proxy()
             .timeout(std::time::Duration::from_secs(30))
             .build()
-            .map(Self)
+            .map(|client| Self(client, std::sync::Arc::new(clock)))
             .map_err(|_| Error::Configuration)
     }
 }
@@ -77,15 +85,16 @@ impl Transport for ReqwestTransport {
         let mut key = reqwest::header::HeaderValue::from_str(&request.key)
             .map_err(|_| Error::Configuration)?;
         key.set_sensitive(true);
-        let mut response = self
+        let prepared = self
             .0
             .post(request.url)
             .header("Ocp-Apim-Subscription-Key", key)
             .header(reqwest::header::CONTENT_TYPE, "application/json")
-            .body(request.body.expose().to_vec())
-            .send()
-            .await
-            .map_err(|_| Error::Uncertain)?;
+            .body(request.body.expose().to_vec());
+        if (self.1)() >= request.valid_until {
+            return Err(Error::Refused);
+        }
+        let mut response = prepared.send().await.map_err(|_| Error::Uncertain)?;
         let status = response.status().as_u16();
         let mut body = Zeroizing::new(Vec::new());
         while let Some(chunk) = response.chunk().await.map_err(|_| Error::Uncertain)? {

@@ -105,3 +105,9 @@ retained reply. No extra provider call is made.
 
 Complete transport reports also preserve available HTTP response headers in a
 private byte-preserving JSON list; no default diagnostics expose cookies or IDs.
+
+`HttpRequest.valid_until` carries the effective quote/capture expiry. Every custom
+transport checks a fresh trusted clock after any queue wait and before I/O. The
+native `ReqwestTransport::new(clock)` enforces this with an injected clock before
+its only send; it has no retries or redirects. Clock units match the host's quote
+and capture convention. An already-dispatched request remains potentially billed.

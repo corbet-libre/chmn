@@ -333,6 +333,7 @@ impl AzureFace {
         let (path, body) = operation.wire();
         let response = transport
             .send(HttpRequest {
+                valid_until: quote.valid_until,
                 url: format!("{}/face/v1.2/{path}", self.endpoint),
                 key: self.key.clone(),
                 body: Private::new(serde_json::to_vec(&body).map_err(|_| Error::Configuration)?),

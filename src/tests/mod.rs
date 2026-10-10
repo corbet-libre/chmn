@@ -124,6 +124,7 @@ impl Dummy {
 impl Transport for Dummy {
     async fn send(&self, request: HttpRequest) -> Result<HttpResponse, Error> {
         assert_eq!(&*request.key, "inert-test-subscription-key");
+        assert_eq!(request.valid_until, 180);
         assert_eq!(format!("{request:?}"), "HttpRequest([redacted])");
         self.calls.lock().unwrap().push((
             request.url,
@@ -494,7 +495,7 @@ fn configuration_capture_and_operation_validation() {
     t.valid_until = 100;
     assert!(a.preview(&operation(), &capture(), &t, 100).is_err());
     #[cfg(not(target_arch = "wasm32"))]
-    assert!(ReqwestTransport::new().is_ok());
+    assert!(ReqwestTransport::new(|| 100).is_ok());
 }
 #[test]
 fn local_simulation_is_a_distinct_untrusted_projection() {
