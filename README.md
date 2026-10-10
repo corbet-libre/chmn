@@ -25,3 +25,6 @@ See [the contract](docs/CONTRACT.md) for credentials, costs, modes, privacy and
 qualification boundaries. No live provider call or account signup is required
 by the fixture suite. Live provider compatibility is unqualified until an
 explicitly authorized host runs its contract probes with its own account.
+
+See the [provider and protocol catalogue](docs/PROVIDERS.md) for implemented paths,
+research candidates, credentials, cost bases and unsupported guarantees.
