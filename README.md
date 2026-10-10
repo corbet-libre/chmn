@@ -8,6 +8,8 @@ Status: name reserved, no implementation or qualified provider adapter yet.
 One invocation checks one provider result; `cfbk` owns ordering/fallback and
 `crbk` owns requirements. The empty production coverage inventory must fail.
 See [the current contract](docs/CONTRACT.md).
+The [implementation acceptance contract](docs/IMPLEMENTATION.md) specifies the
+required adapter output, gate integration, credential injection and refusal tests.
 
 ## Boundaries
 

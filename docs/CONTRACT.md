@@ -10,3 +10,6 @@ output, logs, errors or fixtures. No provider adapter is implemented or
 qualified. Tests are fixture-only and do not authorize live provider calls,
 registration, spending or outreach. Empty production coverage must fail until
 a real adapter and its adversarial tests exist.
+
+The [implementation acceptance contract](IMPLEMENTATION.md) makes the output,
+proof scope, existing gate seams, credential injection and required tests concrete.

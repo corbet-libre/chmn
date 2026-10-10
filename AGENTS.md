@@ -14,6 +14,8 @@ Write all code comments and documentation in English.
 
 ## Quality boundary
 
-- `cargo fmt --check`, `cargo clippy --all-targets` (no warnings),
-  `cargo test` — all green before every commit. No local workstation
-  builds; use GHA, Crow as fallback.
+- Follow `docs/IMPLEMENTATION.md` for deliverables and credential ownership.
+- `cargo fmt --check`, `cargo clippy --all-targets` (no warnings), `cargo test`
+  and the existing coverage gate must pass before completion. Committed
+  candidates enable remote validation. Workstations edit and format; Crow
+  runs builds and tests. Forgejo is primary; no registry publication.
