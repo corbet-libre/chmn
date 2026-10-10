@@ -656,3 +656,243 @@ fn concurrent_general_registration_limits_and_exact_retries() {
         .is_err()
     );
 }
+
+#[test]
+fn account_boundary_and_extreme_operation_inputs_refuse_before_dispatch() {
+    for endpoint in [
+        "https://:password@fixture.cognitiveservices.azure.com",
+        "https://.cognitiveservices.azure.com",
+    ] {
+        assert!(
+            AzureFace::new(
+                "account".into(),
+                endpoint,
+                "inert-test-subscription-key".into(),
+                Mode::Production
+            )
+            .is_err()
+        );
+    }
+    for key in ["x".repeat(4097), "inert-test-key\nprivate".into()] {
+        assert!(
+            AzureFace::new(
+                "account".into(),
+                "https://fixture.cognitiveservices.azure.com",
+                key,
+                Mode::Production
+            )
+            .is_err()
+        );
+    }
+    let mut cap = capture();
+    cap.faces = (1..=11).map(Uuid::from_u128).collect();
+    assert!(cap.validate(100).is_err());
+    let oversized = Operation::Identify {
+        faces: (1..=11).map(Uuid::from_u128).collect(),
+        group: "group".into(),
+        maximum_candidates: 1,
+        threshold: 0.5,
+    };
+    assert!(oversized.validate(&capture()).is_err());
+    for group in ["".into(), "a".repeat(65)] {
+        assert!(
+            Operation::VerifyPerson {
+                face: face(),
+                person: person(),
+                group
+            }
+            .validate(&capture())
+            .is_err()
+        );
+    }
+    assert!(
+        Operation::VerifyPerson {
+            face: face(),
+            person: person(),
+            group: "a1-_".into()
+        }
+        .validate(&capture())
+        .is_ok()
+    );
+    let a = adapter();
+    let quote = a.preview(&operation(), &capture(), &tariff(), 100).unwrap();
+    let other = Plan::new(
+        vec![Offer {
+            candidate: Candidate::new("different".to_string(), [1]),
+            quote,
+        }],
+        Config::new(["different".to_string()], [1]),
+        CostOrder::Configured,
+        amount(10),
+        1,
+        Mode::Production,
+        100,
+    )
+    .unwrap()
+    .start()
+    .begin(100)
+    .unwrap();
+    let dummy = Dummy::new(RESPONSE);
+    assert_eq!(
+        block_on(a.execute(&dummy, &Journal::default(), task(), other, 100)).unwrap_err(),
+        Error::Refused
+    );
+    assert!(dummy.calls.lock().unwrap().is_empty());
+    let sandbox = AzureFace::new(
+        "account".into(),
+        "https://fixture.cognitiveservices.azure.com",
+        "inert-test-subscription-key".into(),
+        Mode::Sandbox,
+    )
+    .unwrap();
+    let quote = sandbox
+        .preview(&operation(), &capture(), &tariff(), 100)
+        .unwrap();
+    let result = block_on(sandbox.execute(
+        &dummy,
+        &Journal::default(),
+        task(),
+        permit(quote, Mode::Sandbox),
+        100,
+    ))
+    .unwrap();
+    let projection = result
+        .project(&Request::default(), &capture(), 100)
+        .unwrap();
+    assert_eq!(projection.mode, Mode::Sandbox);
+    let prod = execute(&Dummy::new(RESPONSE), operation()).unwrap();
+    let key = IdentityKey::new([7; 32]).unwrap();
+    assert_ne!(
+        result
+            .comparison(&key, &identity_request(), &capture(), 100)
+            .unwrap()
+            .bytes(),
+        prod.comparison(&key, &identity_request(), &capture(), 100)
+            .unwrap()
+            .bytes()
+    );
+}
+#[test]
+fn duplicate_provider_candidates_and_requested_projection_thresholds() {
+    assert_eq!(
+        execute(&Dummy::new(&vec![b'x'; 1_048_577]), operation()).unwrap_err(),
+        Error::Uncertain
+    );
+    let op = Operation::Identify {
+        faces: vec![face(), Uuid::from_u128(3)],
+        group: "group".into(),
+        maximum_candidates: 2,
+        threshold: 0.5,
+    };
+    let duplicate_faces =
+        serde_json::json!([{"faceId":face(),"candidates":[]},{"faceId":face(),"candidates":[]}]);
+    assert!(
+        execute(
+            &Dummy::new(&serde_json::to_vec(&duplicate_faces).unwrap()),
+            op
+        )
+        .is_err()
+    );
+    let op = Operation::Identify {
+        faces: vec![face()],
+        group: "group".into(),
+        maximum_candidates: 2,
+        threshold: 0.5,
+    };
+    let duplicate_people = serde_json::json!([{"faceId":face(),"candidates":[{"personId":person(),"confidence":0.9},{"personId":person(),"confidence":0.9}]}]);
+    assert!(
+        execute(
+            &Dummy::new(&serde_json::to_vec(&duplicate_people).unwrap()),
+            op
+        )
+        .is_err()
+    );
+    let result = execute(&Dummy::new(RESPONSE), operation()).unwrap();
+    let p = result
+        .project(
+            &Request {
+                references: true,
+                minimum_confidence: 0.99,
+                ..Request::default()
+            },
+            &capture(),
+            100,
+        )
+        .unwrap();
+    assert!(!p.matches[0].matched);
+    assert_eq!(p.matches[0].face, Some(face()));
+    let mismatch = execute(
+        &Dummy::new(br#"{"isIdentical":false,"confidence":0.1}"#),
+        operation(),
+    )
+    .unwrap();
+    assert!(
+        !mismatch
+            .project(&Request::default(), &capture(), 100)
+            .unwrap()
+            .matches[0]
+            .matched
+    );
+    let mut req = identity_request();
+    req.face = Uuid::from_u128(100);
+    assert!(
+        result
+            .comparison(&IdentityKey::new([1; 32]).unwrap(), &req, &capture(), 100)
+            .is_err()
+    );
+    let simulated = simulate(
+        operation(),
+        capture(),
+        RESPONSE.to_vec(),
+        &Request::default(),
+        100,
+    )
+    .unwrap();
+    assert_eq!(format!("{simulated:?}"), "Simulation([untrusted redacted])");
+}
+#[test]
+fn uncertain_operations_and_concurrent_attempts_keep_one_host_reservation() {
+    let a = adapter();
+    let journal = Journal::default();
+    let mut dummy = Dummy::new(RESPONSE);
+    dummy.fail = true;
+    let q = a.preview(&operation(), &capture(), &tariff(), 100).unwrap();
+    assert_eq!(
+        block_on(a.execute(
+            &dummy,
+            &journal,
+            task(),
+            permit(q.clone(), Mode::Production),
+            100
+        ))
+        .unwrap_err(),
+        Error::Uncertain
+    );
+    assert_eq!(
+        block_on(a.execute(&dummy, &journal, task(), permit(q, Mode::Production), 100))
+            .unwrap_err(),
+        Error::Reservation
+    );
+    assert_eq!(dummy.calls.lock().unwrap().len(), 1);
+    let dummy = Dummy::new(RESPONSE);
+    let journal = Journal::default();
+    let accepted = std::thread::scope(|s| {
+        let jobs = (0..4)
+            .map(|_| {
+                let a = &a;
+                let dummy = &dummy;
+                let journal = &journal;
+                s.spawn(move || {
+                    let q = a.preview(&operation(), &capture(), &tariff(), 100).unwrap();
+                    block_on(a.execute(dummy, journal, task(), permit(q, Mode::Production), 100))
+                        .is_ok()
+                })
+            })
+            .collect::<Vec<_>>();
+        jobs.into_iter()
+            .map(|j| usize::from(j.join().unwrap()))
+            .sum::<usize>()
+    });
+    assert_eq!(accepted, 1);
+    assert_eq!(dummy.calls.lock().unwrap().len(), 1);
+}

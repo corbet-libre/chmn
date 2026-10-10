@@ -188,14 +188,14 @@ impl VerifiedMatch {
             return Err(Error::Unsupported);
         }
         // Structural encoding avoids account/group delimiter collisions.
-        let domain = serde_json::to_string(&(
+        let domain = serde_json::json!([
             "azure-face-v1.2",
             &self.account,
             &self.endpoint,
             format!("{:?}", self.mode),
             group,
-        ))
-        .map_err(|_| Error::Configuration)?;
+        ])
+        .to_string();
         key.derive(&domain, &person.to_string(), &request.scope)
     }
     fn check_context(&self, capture: &Capture, now: u64) -> Result<(), Error> {

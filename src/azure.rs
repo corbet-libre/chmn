@@ -291,10 +291,7 @@ impl AzureFace {
         permit
             .validate(&quote.binding, self.mode, now)
             .map_err(|_| Error::Refused)?;
-        if permit.candidate() != &self.account
-            || permit.quote() != &quote
-            || quote.price.maximum().is_none()
-        {
+        if permit.candidate() != &self.account || permit.quote() != &quote {
             return Err(Error::Refused);
         }
         store

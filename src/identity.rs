@@ -24,7 +24,7 @@ impl IdentityKey {
             identifier(s)?;
         }
         let mut mac = <Hmac<Sha256> as KeyInit>::new_from_slice(self.0.as_ref())
-            .map_err(|_| Error::Configuration)?;
+            .expect("HMAC accepts keys of any length");
         mac.update(b"chmn:identity:v1\0");
         for s in [domain, scope, identity] {
             mac.update(&(s.len() as u64).to_be_bytes());
