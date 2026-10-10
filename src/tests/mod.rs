@@ -134,6 +134,7 @@ impl Transport for Dummy {
         }
         Ok(HttpResponse {
             status: self.status,
+            headers: Private::new(br#"[["x-provider",[112,114,105,118,97,116,101]]]"#.to_vec()),
             body: Private::new(self.response.clone()),
         })
     }
@@ -1006,6 +1007,8 @@ fn explicit_report_retains_bounded_replies_without_authenticating_invalid_data()
         }
         let raw = report.response.unwrap();
         assert_eq!(raw.status, status);
+        let headers: Vec<(String, Vec<u8>)> = serde_json::from_slice(raw.headers.expose()).unwrap();
+        assert_eq!(headers, vec![("x-provider".into(), b"private".to_vec())]);
         assert_eq!(raw.body.expose(), body);
         assert_eq!(wire.calls.lock().unwrap().len(), 1);
     }

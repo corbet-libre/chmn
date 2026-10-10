@@ -344,6 +344,7 @@ impl AzureFace {
         if let Some(report) = report {
             *report = Some(HttpResponse {
                 status: response.status,
+                headers: Private::new(response.headers.expose().to_vec()),
                 body: Private::new(response.body.expose().to_vec()),
             });
         }

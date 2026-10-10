@@ -102,3 +102,6 @@ malformed and predicate-refused success bodies, without changing the minimal
 allows private inspection after a projection/identity request refuses. Reports
 have no revealing diagnostics; network failures and over-limit bodies have no
 retained reply. No extra provider call is made.
+
+Complete transport reports also preserve available HTTP response headers in a
+private byte-preserving JSON list; no default diagnostics expose cookies or IDs.

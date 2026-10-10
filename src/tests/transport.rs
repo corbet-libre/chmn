@@ -56,6 +56,13 @@ fn actual_reqwest_transport_handles_status_bodies_and_truncation_without_provide
             .unwrap();
     assert_eq!(response.status, 200);
     assert_eq!(response.body.expose(), b"{}");
+    let headers: Vec<(String, Vec<u8>)> =
+        serde_json::from_slice(response.headers.expose()).unwrap();
+    assert!(
+        headers
+            .iter()
+            .any(|(name, value)| name == "content-length" && value == b"2")
+    );
     let response = exchange(
         b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             .to_vec(),

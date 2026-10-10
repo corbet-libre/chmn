@@ -20,6 +20,9 @@ impl std::fmt::Debug for HttpRequest {
 pub struct HttpResponse {
     /// Actual HTTP status.
     pub status: u16,
+    /// Available response headers as private JSON name/byte-array pairs. Duplicate
+    /// names and non-UTF8 bytes are preserved; use an empty list when unavailable.
+    pub headers: Private,
     /// Exact bounded response bytes, retained only in RAM.
     pub body: Private,
 }
@@ -93,6 +96,16 @@ impl Transport for ReqwestTransport {
         }
         Ok(HttpResponse {
             status,
+            headers: Private::new(
+                serde_json::to_vec(
+                    &response
+                        .headers()
+                        .iter()
+                        .map(|(name, value)| (name.as_str(), value.as_bytes()))
+                        .collect::<Vec<_>>(),
+                )
+                .expect("HTTP header fields serialize"),
+            ),
             body: Private::new(std::mem::take(&mut *body)),
         })
     }
