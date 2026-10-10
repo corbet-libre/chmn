@@ -33,6 +33,11 @@ pub struct VerifiedMatch {
     original: Private,
 }
 impl VerifiedMatch {
+    /// Explicit access to the complete private upstream representation, including
+    /// after a requested projection refuses. These bytes do not grant fresh proof.
+    pub fn upstream(&self) -> &Private {
+        &self.original
+    }
     pub(crate) fn parse(
         mode: cfbk::cost::Mode,
         account: &str,

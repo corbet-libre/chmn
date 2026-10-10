@@ -95,3 +95,10 @@ exposes it. Default diagnostics redact all provider error bytes.
 `OperationStore` receives the effective exclusive deadline and checks its fresh
 host clock before authorizing dispatch; the planning timestamp cannot extend
 an expired quote while a reservation is waiting.
+
+`execute_report` explicitly preserves every bounded available reply, including
+malformed and predicate-refused success bodies, without changing the minimal
+`execute` result or authenticating arbitrary data. `VerifiedMatch::upstream`
+allows private inspection after a projection/identity request refuses. Reports
+have no revealing diagnostics; network failures and over-limit bodies have no
+retained reply. No extra provider call is made.

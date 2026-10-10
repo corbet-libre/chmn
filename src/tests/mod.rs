@@ -968,3 +968,62 @@ fn reservation_uses_a_fresh_host_clock_and_refuses_expired_dispatch() {
     );
     assert!(dummy.calls.lock().unwrap().is_empty());
 }
+
+#[test]
+fn explicit_report_retains_bounded_replies_without_authenticating_invalid_data() {
+    for (status, body, accepted) in [
+        (200, RESPONSE.to_vec(), true),
+        (200, b"private-malformed-response".to_vec(), false),
+        (
+            200,
+            br#"{"isIdentical":true,"confidence":4.2,"extension":"private"}"#.to_vec(),
+            false,
+        ),
+        (403, b"private-provider-refusal".to_vec(), false),
+    ] {
+        let adapter = adapter();
+        let quote = adapter
+            .preview(&operation(), &capture(), &tariff(), 100)
+            .unwrap();
+        let mut wire = Dummy::new(&body);
+        wire.status = status;
+        let report = block_on(adapter.execute_report(
+            &wire,
+            &Journal::default(),
+            task(),
+            permit(quote, Mode::Production),
+            100,
+        ));
+        assert_eq!(report.result.is_ok(), accepted);
+        if let Ok(verified) = report.result {
+            assert_eq!(verified.upstream().expose(), body);
+            let invalid = Request {
+                minimum_confidence: 2.0,
+                ..Request::default()
+            };
+            assert!(verified.project(&invalid, &capture(), 100).is_err());
+            assert_eq!(verified.upstream().expose(), body);
+        }
+        let raw = report.response.unwrap();
+        assert_eq!(raw.status, status);
+        assert_eq!(raw.body.expose(), body);
+        assert_eq!(wire.calls.lock().unwrap().len(), 1);
+    }
+    for fail in [true, false] {
+        let adapter = adapter();
+        let quote = adapter
+            .preview(&operation(), &capture(), &tariff(), 100)
+            .unwrap();
+        let mut wire = Dummy::new(&vec![0; 1_048_577]);
+        wire.fail = fail;
+        let report = block_on(adapter.execute_report(
+            &wire,
+            &Journal::default(),
+            task(),
+            permit(quote, Mode::Production),
+            100,
+        ));
+        assert!(report.result.is_err());
+        assert!(report.response.is_none());
+    }
+}

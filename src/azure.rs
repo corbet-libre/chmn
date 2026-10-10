@@ -1,6 +1,6 @@
 use crate::{
-    Error, HttpRequest, OperationStore, Private, Request, Simulation, Transport, VerifiedMatch,
-    identifier,
+    Error, ExecutionReport, HttpRequest, HttpResponse, OperationStore, Private, Request,
+    Simulation, Transport, VerifiedMatch, identifier,
 };
 use cfbk::cost::{DispatchPermit, Mode, Price, Quote};
 use serde::Serialize;
@@ -282,6 +282,34 @@ impl AzureFace {
         permit: DispatchPermit<String>,
         now: u64,
     ) -> Result<VerifiedMatch, Error> {
+        self.execute_inner(transport, store, task, permit, now, None)
+            .await
+    }
+    /// Explicitly return any bounded upstream reply, even if decoding, scope or
+    /// provider checks refuse it. This performs the same single authorized call.
+    pub async fn execute_report<T: Transport, S: OperationStore>(
+        &self,
+        transport: &T,
+        store: &S,
+        task: Task,
+        permit: DispatchPermit<String>,
+        now: u64,
+    ) -> ExecutionReport {
+        let mut response = None;
+        let result = self
+            .execute_inner(transport, store, task, permit, now, Some(&mut response))
+            .await;
+        ExecutionReport { result, response }
+    }
+    async fn execute_inner<T: Transport, S: OperationStore>(
+        &self,
+        transport: &T,
+        store: &S,
+        task: Task,
+        permit: DispatchPermit<String>,
+        now: u64,
+        report: Option<&mut Option<HttpResponse>>,
+    ) -> Result<VerifiedMatch, Error> {
         let Task {
             operation,
             capture,
@@ -310,6 +338,15 @@ impl AzureFace {
                 body: Private::new(serde_json::to_vec(&body).map_err(|_| Error::Configuration)?),
             })
             .await?;
+        if response.body.expose().len() > 1_048_576 {
+            return Err(Error::Uncertain);
+        }
+        if let Some(report) = report {
+            *report = Some(HttpResponse {
+                status: response.status,
+                body: Private::new(response.body.expose().to_vec()),
+            });
+        }
         if response.status != 200 {
             return Err(Error::ProviderResponse {
                 status: response.status,

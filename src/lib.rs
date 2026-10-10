@@ -30,7 +30,15 @@ impl std::fmt::Debug for Private {
         f.write_str("Private([redacted])")
     }
 }
-/// Payload-free failures. A dispatched error does not establish zero cost.
+/// Explicit private upstream report. Invalid replies cannot become verified facts.
+/// No diagnostic Debug or serialization exposes private provider data.
+pub struct ExecutionReport {
+    /// The same domain result as the minimal execution API.
+    pub result: Result<VerifiedMatch, Error>,
+    /// Complete bounded response available from the trusted transport, if received.
+    pub response: Option<HttpResponse>,
+}
+/// Redacted failures. A dispatched error does not establish zero cost.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// Invalid configuration or caller request.
