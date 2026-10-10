@@ -299,6 +299,7 @@ impl AzureFace {
                 &capture.operation,
                 &quote.binding,
                 quote.price.maximum().ok_or(Error::Refused)?,
+                quote.valid_until,
             )
             .await?;
         let (path, body) = operation.wire();

@@ -40,11 +40,13 @@ pub trait Transport: Sync {
 /// here; no raw biometric/provider result is passed to this port.
 pub trait OperationStore: Sync {
     /// Reserve operation identity and maximum cost before transport dispatch.
+    /// Check the host's fresh clock against this exclusive deadline before success.
     fn reserve(
         &self,
         operation: &str,
         binding: &str,
         maximum: &Amount,
+        valid_until: u64,
     ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 /// Maintained reqwest HTTPS transport. Native only; WASM callers supply their

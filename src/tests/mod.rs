@@ -88,6 +88,9 @@ struct Journal(Mutex<BTreeMap<String, String>>);
 impl OperationStore for Journal {
     async fn reserve(&self, operation: &str, binding: &str, maximum: &Amount) -> Result<(), Error> {
         assert_eq!(maximum, &amount(2));
+        if valid_until <= 100 {
+            return Err(Error::Reservation);
+        }
         let mut state = self.0.lock().unwrap();
         if state.contains_key(operation) {
             return Err(Error::Reservation);
@@ -932,4 +935,30 @@ fn upstream_failures_remain_private_until_explicitly_requested() {
     assert_eq!(error.upstream().unwrap().expose(), dummy.response);
     assert!(!format!("{error:?} {error}").contains("private-provider-detail"));
     assert!(Error::Uncertain.upstream().is_none());
+}
+
+#[test]
+fn reservation_uses_a_fresh_host_clock_and_refuses_expired_dispatch() {
+    struct Expired;
+    impl OperationStore for Expired {
+        async fn reserve(&self, _: &str, _: &str, _: &Amount, deadline: u64) -> Result<(), Error> {
+            assert_eq!(deadline, 180);
+            Err(Error::Reservation)
+        }
+    }
+    let a = adapter();
+    let quote = a.preview(&operation(), &capture(), &tariff(), 100).unwrap();
+    let dummy = Dummy::new(RESPONSE);
+    assert_eq!(
+        block_on(a.execute(
+            &dummy,
+            &Expired,
+            task(),
+            permit(quote, Mode::Production),
+            100
+        ))
+        .unwrap_err(),
+        Error::Reservation
+    );
+    assert!(dummy.calls.lock().unwrap().is_empty());
 }

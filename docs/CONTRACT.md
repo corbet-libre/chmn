@@ -91,3 +91,7 @@ Sandbox matching results can be projected privately but cannot derive a
 production registration identity. Non-success HTTP responses retain their exact
 private body in `ProviderResponse`; only explicit `Error::upstream` access
 exposes it. Default diagnostics redact all provider error bytes.
+
+`OperationStore` receives the effective exclusive deadline and checks its fresh
+host clock before authorizing dispatch; the planning timestamp cannot extend
+an expired quote while a reservation is waiting.
