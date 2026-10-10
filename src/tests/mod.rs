@@ -86,7 +86,13 @@ const RESPONSE: &[u8] =
 #[derive(Default)]
 struct Journal(Mutex<BTreeMap<String, String>>);
 impl OperationStore for Journal {
-    async fn reserve(&self, operation: &str, binding: &str, maximum: &Amount) -> Result<(), Error> {
+    async fn reserve(
+        &self,
+        operation: &str,
+        binding: &str,
+        maximum: &Amount,
+        valid_until: u64,
+    ) -> Result<(), Error> {
         assert_eq!(maximum, &amount(2));
         if valid_until <= 100 {
             return Err(Error::Reservation);
