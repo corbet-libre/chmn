@@ -13,6 +13,7 @@ pub use transport::{HttpRequest, HttpResponse, OperationStore, Transport};
 use zeroize::Zeroizing;
 
 /// Private RAM buffer. Access is explicit and diagnostics are redacted.
+#[derive(PartialEq, Eq)]
 pub struct Private(Zeroizing<Vec<u8>>);
 impl Private {
     /// Import a buffer. This does not authenticate its contents.
@@ -30,7 +31,7 @@ impl std::fmt::Debug for Private {
     }
 }
 /// Payload-free failures. A dispatched error does not establish zero cost.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
     /// Invalid configuration or caller request.
     #[error("invalid biometric configuration")]
@@ -43,7 +44,12 @@ pub enum Error {
     Uncertain,
     /// Provider returned a definitive non-success HTTP response; it may be billed.
     #[error("biometric provider rejected operation")]
-    Provider,
+    ProviderResponse {
+        /// Actual provider HTTP status, without treating it as authenticated domain proof.
+        status: u16,
+        /// Exact bounded private provider error body; explicit access only.
+        response: Private,
+    },
     /// Authenticated provider representation was invalid or not request-bound.
     #[error("biometric response rejected")]
     Rejected,
@@ -53,6 +59,16 @@ pub enum Error {
     /// Caller atomic state refused the reservation.
     #[error("biometric state reservation refused")]
     Reservation,
+}
+impl Error {
+    /// Explicit complete upstream error bytes, when an HTTP failure was received.
+    /// These are provider assertions, not verified domain facts.
+    pub fn upstream(&self) -> Option<&Private> {
+        match self {
+            Self::ProviderResponse { response, .. } => Some(response),
+            _ => None,
+        }
+    }
 }
 pub(crate) fn identifier(s: &str) -> Result<(), Error> {
     if s.is_empty() || s.len() > 1024 || s.chars().any(char::is_control) {

@@ -308,7 +308,10 @@ fn malformed_or_unbound_provider_results_are_uncertain_after_dispatch() {
     }
     let mut dummy = Dummy::new(RESPONSE);
     dummy.status = 429;
-    assert_eq!(execute(&dummy, operation()).unwrap_err(), Error::Provider);
+    assert!(matches!(
+        execute(&dummy, operation()).unwrap_err(),
+        Error::ProviderResponse { status: 429, .. }
+    ));
     dummy.status = 200;
     dummy.fail = true;
     assert_eq!(execute(&dummy, operation()).unwrap_err(), Error::Uncertain);
@@ -765,16 +768,12 @@ fn account_boundary_and_extreme_operation_inputs_refuse_before_dispatch() {
         .project(&Request::default(), &capture(), 100)
         .unwrap();
     assert_eq!(projection.mode, Mode::Sandbox);
-    let prod = execute(&Dummy::new(RESPONSE), operation()).unwrap();
     let key = IdentityKey::new([7; 32]).unwrap();
-    assert_ne!(
+    assert_eq!(
         result
             .comparison(&key, &identity_request(), &capture(), 100)
-            .unwrap()
-            .bytes(),
-        prod.comparison(&key, &identity_request(), &capture(), 100)
-            .unwrap()
-            .bytes()
+            .unwrap_err(),
+        Error::Refused
     );
 }
 #[test]
@@ -922,4 +921,15 @@ fn retained_comparison_handles_do_not_register_after_capture_expiry() {
         block_on(id.register(&Registrations::default(), &request, 200)),
         Err(Error::Rejected)
     );
+}
+
+#[test]
+fn upstream_failures_remain_private_until_explicitly_requested() {
+    let mut dummy =
+        Dummy::new(br#"{"error":{"message":"private-provider-detail"},"extension":42}"#);
+    dummy.status = 403;
+    let error = execute(&dummy, operation()).unwrap_err();
+    assert_eq!(error.upstream().unwrap().expose(), dummy.response);
+    assert!(!format!("{error:?} {error}").contains("private-provider-detail"));
+    assert!(Error::Uncertain.upstream().is_none());
 }

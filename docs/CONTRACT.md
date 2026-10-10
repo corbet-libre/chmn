@@ -86,3 +86,8 @@ contracts. Live cloud calls are not run; provider access, enrollment quality,
 biometric accuracy, liveness, retention and service availability are not certified
 by the fixture suite. Production qualification needs explicit operator permission,
 a current tariff, an approved account and provider-specific contract probes.
+
+Sandbox matching results can be projected privately but cannot derive a
+production registration identity. Non-success HTTP responses retain their exact
+private body in `ProviderResponse`; only explicit `Error::upstream` access
+exposes it. Default diagnostics redact all provider error bytes.

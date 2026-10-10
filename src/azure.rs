@@ -310,7 +310,10 @@ impl AzureFace {
             })
             .await?;
         if response.status != 200 {
-            return Err(Error::Provider);
+            return Err(Error::ProviderResponse {
+                status: response.status,
+                response: response.body,
+            });
         }
         VerifiedMatch::parse(
             self.mode,

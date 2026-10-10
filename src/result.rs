@@ -172,6 +172,9 @@ impl VerifiedMatch {
         now: u64,
     ) -> Result<ScopedIdentity, Error> {
         self.check_context(capture, now)?;
+        if self.mode != cfbk::cost::Mode::Production {
+            return Err(Error::Refused);
+        }
         confidence(request.minimum_confidence)?;
         let group = match &self.operation {
             Operation::VerifyPerson { group, .. } | Operation::Identify { group, .. } => group,
