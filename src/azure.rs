@@ -274,15 +274,17 @@ impl AzureFace {
     /// Execute once after independent quote validation and caller atomic reserve.
     /// A transport error or malformed success is uncertain: retain the full cost
     /// exposure. There are no automatic retries or fallback calls.
+    /// A trusted live clock is checked after reservation and provider completion;
+    /// expired replies cannot become authenticated facts.
     pub async fn execute<T: Transport, S: OperationStore>(
         &self,
         transport: &T,
         store: &S,
         task: Task,
         permit: DispatchPermit<String>,
-        now: u64,
+        clock: &impl Fn() -> u64,
     ) -> Result<VerifiedMatch, Error> {
-        self.execute_inner(transport, store, task, permit, now, None)
+        self.execute_inner(transport, store, task, permit, clock, None)
             .await
     }
     /// Explicitly return any bounded upstream reply, even if decoding, scope or
@@ -293,11 +295,11 @@ impl AzureFace {
         store: &S,
         task: Task,
         permit: DispatchPermit<String>,
-        now: u64,
+        clock: &impl Fn() -> u64,
     ) -> ExecutionReport {
         let mut response = None;
         let result = self
-            .execute_inner(transport, store, task, permit, now, Some(&mut response))
+            .execute_inner(transport, store, task, permit, clock, Some(&mut response))
             .await;
         ExecutionReport { result, response }
     }
@@ -307,9 +309,10 @@ impl AzureFace {
         store: &S,
         task: Task,
         permit: DispatchPermit<String>,
-        now: u64,
+        clock: &impl Fn() -> u64,
         report: Option<&mut Option<HttpResponse>>,
     ) -> Result<VerifiedMatch, Error> {
+        let now = clock();
         let Task {
             operation,
             capture,
@@ -330,6 +333,10 @@ impl AzureFace {
                 quote.valid_until,
             )
             .await?;
+        let dispatched = clock();
+        if dispatched < now || dispatched >= quote.valid_until {
+            return Err(Error::Refused);
+        }
         let (path, body) = operation.wire();
         let response = transport
             .send(HttpRequest {
@@ -348,6 +355,10 @@ impl AzureFace {
                 headers: Private::new(response.headers.expose().to_vec()),
                 body: Private::new(response.body.expose().to_vec()),
             });
+        }
+        let completed = clock();
+        if completed < dispatched || completed >= capture.expires_at {
+            return Err(Error::Uncertain);
         }
         if response.status != 200 {
             return Err(Error::ProviderResponse {

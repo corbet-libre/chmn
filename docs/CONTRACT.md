@@ -111,3 +111,15 @@ transport checks a fresh trusted clock after any queue wait and before I/O. The
 native `ReqwestTransport::new(clock)` enforces this with an injected clock before
 its only send; it has no retries or redirects. Clock units match the host's quote
 and capture convention. An already-dispatched request remains potentially billed.
+
+
+Async operations take an injected trusted live clock, rather than reusing a
+pre-await timestamp. They recheck exclusive validity after awaited provider or
+state work; a clock rollback refuses the operation. A reply that arrives after its context/capture deadline creates no fresh
+fact; tariff expiry limits dispatch, not an already-authorized response. Explicit private report access remains available, and uncertainty never
+releases a cost reservation automatically.
+Atomic registration/consumption ports receive the exclusive validity deadline.
+The host must check its trusted current time within the atomic commit after any
+queue wait; an expired attempt leaves state unchanged. If time expires after a
+valid commit but before return, the API refuses a fresh success receipt and does
+not undo the host's committed reservation.

@@ -154,7 +154,7 @@ fn execute(dummy: &Dummy, operation: Operation) -> Result<VerifiedMatch, Error> 
             tariff,
         },
         permit(quote, Mode::Production),
-        100,
+        &|| 100,
     ))
 }
 fn identity_request() -> IdentityRequest {
@@ -350,7 +350,7 @@ fn authorization_rejects_changed_terms_expiry_mode_and_duplicate_dispatch() {
                 &Journal::default(),
                 task,
                 permit(changed, mode),
-                now
+                &|| now
             ))
             .is_err()
         );
@@ -364,13 +364,19 @@ fn authorization_rejects_changed_terms_expiry_mode_and_duplicate_dispatch() {
             &journal,
             task(),
             permit(q.clone(), Mode::Production),
-            100
+            &|| 100
         ))
         .is_ok()
     );
     assert_eq!(
-        block_on(a.execute(&dummy, &journal, task(), permit(q, Mode::Production), 100))
-            .unwrap_err(),
+        block_on(a.execute(
+            &dummy,
+            &journal,
+            task(),
+            permit(q, Mode::Production),
+            &|| 100
+        ))
+        .unwrap_err(),
         Error::Reservation
     );
     assert_eq!(dummy.calls.lock().unwrap().len(), 1);
@@ -561,7 +567,9 @@ impl RegistrationStore for Registrations {
         scope: &str,
         maximum: u64,
         operation: &str,
+        valid_until: u64,
     ) -> Result<(), Error> {
+        assert!(valid_until > 100);
         let mut state = self.0.lock().unwrap();
         let entry = state
             .entry((*identity.bytes(), scope.into()))
@@ -604,7 +612,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                             maximum: 2,
                             operation: n.to_string(),
                         },
-                        100,
+                        &|| 100,
                     ))
                     .is_ok()
                 })
@@ -634,7 +642,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 maximum: 2,
                 operation: operation.clone()
             },
-            100
+            &|| 100
         ))
         .is_ok()
     );
@@ -646,7 +654,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 maximum: 3,
                 operation
             },
-            100
+            &|| 100
         ))
         .is_err()
     );
@@ -658,7 +666,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 maximum: 2,
                 operation: "new".into()
             },
-            100
+            &|| 100
         ))
         .is_ok()
     );
@@ -670,7 +678,7 @@ fn concurrent_general_registration_limits_and_exact_retries() {
                 maximum: 0,
                 operation: "zero".into()
             },
-            100
+            &|| 100
         ))
         .is_err()
     );
@@ -753,7 +761,7 @@ fn account_boundary_and_extreme_operation_inputs_refuse_before_dispatch() {
     .unwrap();
     let dummy = Dummy::new(RESPONSE);
     assert_eq!(
-        block_on(a.execute(&dummy, &Journal::default(), task(), other, 100)).unwrap_err(),
+        block_on(a.execute(&dummy, &Journal::default(), task(), other, &|| 100)).unwrap_err(),
         Error::Refused
     );
     assert!(dummy.calls.lock().unwrap().is_empty());
@@ -772,7 +780,7 @@ fn account_boundary_and_extreme_operation_inputs_refuse_before_dispatch() {
         &Journal::default(),
         task(),
         permit(quote, Mode::Sandbox),
-        100,
+        &|| 100,
     ))
     .unwrap();
     let projection = result
@@ -878,14 +886,20 @@ fn uncertain_operations_and_concurrent_attempts_keep_one_host_reservation() {
             &journal,
             task(),
             permit(q.clone(), Mode::Production),
-            100
+            &|| 100
         ))
         .unwrap_err(),
         Error::Uncertain
     );
     assert_eq!(
-        block_on(a.execute(&dummy, &journal, task(), permit(q, Mode::Production), 100))
-            .unwrap_err(),
+        block_on(a.execute(
+            &dummy,
+            &journal,
+            task(),
+            permit(q, Mode::Production),
+            &|| 100
+        ))
+        .unwrap_err(),
         Error::Reservation
     );
     assert_eq!(dummy.calls.lock().unwrap().len(), 1);
@@ -899,8 +913,14 @@ fn uncertain_operations_and_concurrent_attempts_keep_one_host_reservation() {
                 let journal = &journal;
                 s.spawn(move || {
                     let q = a.preview(&operation(), &capture(), &tariff(), 100).unwrap();
-                    block_on(a.execute(dummy, journal, task(), permit(q, Mode::Production), 100))
-                        .is_ok()
+                    block_on(a.execute(
+                        dummy,
+                        journal,
+                        task(),
+                        permit(q, Mode::Production),
+                        &|| 100,
+                    ))
+                    .is_ok()
                 })
             })
             .collect::<Vec<_>>();
@@ -929,7 +949,7 @@ fn retained_comparison_handles_do_not_register_after_capture_expiry() {
         operation: "op".into(),
     };
     assert_eq!(
-        block_on(id.register(&Registrations::default(), &request, 200)),
+        block_on(id.register(&Registrations::default(), &request, &|| 200)),
         Err(Error::Rejected)
     );
 }
@@ -963,7 +983,7 @@ fn reservation_uses_a_fresh_host_clock_and_refuses_expired_dispatch() {
             &Expired,
             task(),
             permit(quote, Mode::Production),
-            100
+            &|| 100
         ))
         .unwrap_err(),
         Error::Reservation
@@ -1005,7 +1025,7 @@ fn explicit_report_retains_bounded_replies_without_authenticating_invalid_data()
             &Journal::default(),
             task(),
             permit(quote, Mode::Production),
-            100,
+            &|| 100,
         ));
         assert_eq!(report.result.is_ok(), accepted);
         if let Ok(verified) = report.result {
@@ -1036,9 +1056,11 @@ fn explicit_report_retains_bounded_replies_without_authenticating_invalid_data()
             &Journal::default(),
             task(),
             permit(quote, Mode::Production),
-            100,
+            &|| 100,
         ));
         assert!(report.result.is_err());
         assert!(report.response.is_none());
     }
 }
+
+mod clock;

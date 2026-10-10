@@ -54,8 +54,9 @@ impl ScopedIdentity {
         &self,
         store: &S,
         request: &Registration,
-        now: u64,
+        clock: &impl Fn() -> u64,
     ) -> Result<(), Error> {
+        let now = clock();
         if now >= self.expires_at {
             return Err(Error::Rejected);
         }
@@ -70,8 +71,14 @@ impl ScopedIdentity {
                 &request.policy_scope,
                 request.maximum,
                 &request.operation,
+                self.expires_at,
             )
-            .await
+            .await?;
+        let completed = clock();
+        if completed < now || completed >= self.expires_at {
+            return Err(Error::Rejected);
+        }
+        Ok(())
     }
 }
 /// Caller-defined registration policy and idempotent operation.
@@ -87,6 +94,8 @@ pub struct Registration {
 /// operation must refuse; exact retries are idempotent; competing claims cannot
 /// exceed X. No direct database or default volatile implementation is supplied.
 pub trait RegistrationStore: Sync {
+    /// Check the trusted current time against `valid_until` inside the atomic
+    /// commit, including after queue waits; expiry must leave state unchanged.
     /// Atomically reserve without storing raw provider identity data.
     fn reserve(
         &self,
@@ -94,6 +103,7 @@ pub trait RegistrationStore: Sync {
         policy_scope: &str,
         maximum: u64,
         operation: &str,
+        valid_until: u64,
     ) -> impl Future<Output = Result<(), Error>> + Send;
 }
 impl fmt::Debug for IdentityKey {
