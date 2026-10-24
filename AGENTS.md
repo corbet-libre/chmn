@@ -13,6 +13,6 @@ placeholder scope. Own only safe Rust. Integrate maintained implementations.
   operation/budget reservation. No automatic retry or provider activation.
 - Never spend, sign up or run live provider calls for development or tests.
 - Keep LGPL-3.0-only WITH LGPL-3.0-linking-exception compatibility.
-- Workstations edit/format; Crow runs fmt, clippy, tests, WASM and the existing
+- Local checkouts edit/format; Crow runs fmt, clippy, tests, WASM and the existing
   complete source/branch coverage gate. Do not weaken checks to claim completion.
 - Committed main candidates enable remote testing. No deployment or publication.
