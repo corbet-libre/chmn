@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 description = "RAM-only biometric provider matching with explicit costs and scoped identities"
 license = "LGPL-3.0-only WITH LGPL-3.0-linking-exception"
-repository = "https://git.corbet.ch/corbet-foss/chmn"
+repository = "https://git.corbet.ch/corbet-libre/chmn"
 readme = "README.md"
 publish = false
 include = ["Cargo.toml", "src/**", "README.md", "LICENSE", "LICENSE.md", "LICENSES/LGPL-3.0-only.txt", "LICENSES/LGPL-3.0-linking-exception.txt", "LICENSES/GPL-3.0-only.txt"]
@@ -18,7 +18,7 @@ unsafe_code = "forbid"
 missing_docs = "warn"
 
 [dependencies]
-cfbk = { git = "https://git.corbet.ch/corbet-foss/cfbk", branch = "main" }
+cfbk = { git = "https://git.corbet.ch/corbet-libre/cfbk", branch = "main" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["serde"] }
